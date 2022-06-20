@@ -2,7 +2,7 @@
 
 from setuptools import setup, find_packages
 
-__version__ = '1.0.1'
+__version__ = '1.0.2'
 
 with open('README.md', 'r', encoding='utf-8') as readme:
     long_description = readme.read()
@@ -12,8 +12,7 @@ setup(
     author='Mine Your Business',
     author_email='mine.your.business.crypto@gmail.com',
     packages=find_packages(exclude=("tests", "examples", "docs")),
-    package_dir={'uniswap': 'uniswap'},
-    package_data={'uniswap': ['assets/*.abi']},
+    package_data={'uniswap': ['assets/*.abi', 'assets/**/*.abi']},
     version=__version__,
     description='Python library for interacting with Uniswap',
     long_description=long_description,
