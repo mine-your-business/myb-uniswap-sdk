@@ -55,6 +55,7 @@ class Uniswap:
 
     default_slippage: float
     use_estimate_gas: bool
+    maximum_gas: int
 
     def __init__(
         self,
@@ -65,6 +66,7 @@ class Uniswap:
         version: int = 1,
         default_slippage: float = 0.01,
         use_estimate_gas: bool = True,
+        maximum_gas: int = 250000,
         # use_eip1559: bool = True,
         factory_contract_addr: str = None,
         router_contract_addr: str = None,
@@ -92,6 +94,7 @@ class Uniswap:
         # TODO: Write tests for slippage
         self.default_slippage = default_slippage
         self.use_estimate_gas = use_estimate_gas
+        self.maximum_gas = maximum_gas
 
         if web3:
             self.w3 = web3
@@ -1112,11 +1115,14 @@ class Uniswap:
             # Maybe an issue with ganache? (got GC warnings once...)
             if self.use_estimate_gas:
                 # The Uniswap V3 UI uses 20% margin for transactions
-                transaction["gas"] = Wei(
-                    int(self.w3.eth.estimate_gas(transaction) * 1.2)
-                )
+                estimated_gas = int(self.w3.eth.estimate_gas(transaction) * 1.2)
+                if estimated_gas > self.maximum_gas:
+                    logger.error(
+                        f"Unable to process transaction - gas fee of {estimated_gas} WEI too high (configured maximum is {self.maximum_gas} WEI)")
+                    raise Exception("Gas fees too high!")
+                transaction["gas"] = Wei(estimated_gas)
             else:
-                transaction["gas"] = Wei(250000)
+                transaction["gas"] = Wei(self.maximum_gas)
 
         signed_txn = self.w3.eth.account.sign_transaction(
             transaction, private_key=self.private_key
@@ -1256,7 +1262,7 @@ class Uniswap:
             token_out = self.get_weth_address()
 
         if self.version == 2:
-            params: Iterable[Union[ChecksumAddress,Optional[int]]] = [
+            params: Iterable[Union[ChecksumAddress, Optional[int]]] = [
                 self.w3.toChecksumAddress(token_in),
                 self.w3.toChecksumAddress(token_out),
             ]
