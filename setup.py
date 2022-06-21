@@ -2,7 +2,7 @@
 
 from setuptools import setup, find_packages
 
-__version__ = '1.0.2'
+__version__ = '1.0.3'
 
 with open('README.md', 'r', encoding='utf-8') as readme:
     long_description = readme.read()
@@ -18,7 +18,10 @@ setup(
     long_description=long_description,
     long_description_content_type='text/markdown',
     install_requires=[
-        'requests>=2.26.0'
+        'requests>=2.26.0',
+        'web3>=5.29.0',
+        'click>=8.1.3',
+        'python-dotenv>=0.19.0'
     ],
     url='https://github.com/mine-your-business/myb-uniswap-sdk',
     python_requires='>=3.7',
