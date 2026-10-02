@@ -18,8 +18,8 @@ sys.path.insert(0, os.path.abspath(".."))
 
 # -- Project information -----------------------------------------------------
 
-project = "uniswap-python"
-author = "Shane Fontaine, Erik Bjäreholt, and contributors"
+project = "myb-uniswap-sdk"
+author = "Mine Your Business; based on uniswap-python by Shane Fontaine, Erik Bjäreholt, and contributors"
 copyright = "2021, " + author
 
 
@@ -44,7 +44,7 @@ templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 extlinks = {
-    "issue": ("https://github.com/shanefontaine/uniswap-python/issues/%s", "issue #"),
+    "issue": ("https://github.com/mine-your-business/myb-uniswap-sdk/issues/%s", "issue #%s"),
 }
 
 
@@ -60,19 +60,15 @@ html_theme = "sphinx_book_theme"
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_static"]
 
-html_title = "uniswap-python"
+html_title = "myb-uniswap-sdk"
 html_logo = "_static/logo.png"
 html_favicon = "_static/favicon.png"
 
 html_theme_options = {
-    "repository_url": "https://github.com/shanefontaine/uniswap-python",
+    "repository_url": "https://github.com/mine-your-business/myb-uniswap-sdk",
     "path_to_docs": "docs",
     "use_repository_button": True,
     "use_edit_page_button": True,
-    "extra_navbar": """
-    <p>
-        Back to <a href="https://github.com/shanefontaine/uniswap-python">GitHub</a>
-    </p>""",
 }
 
 show_navbar_depth = 2

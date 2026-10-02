@@ -20,17 +20,17 @@ You can install the latest release from PyPI, or install the latest commit direc
 
     # Install the latest release from PyPI:
 
-    pip install uniswap-python
+    pip install myb-uniswap-sdk
 
     # or install from git:
-    
-    pip install git+git://github.com/uniswap-python/uniswap-python.git
 
-    # or clone and install with poetry:
+    pip install git+https://github.com/mine-your-business/myb-uniswap-sdk.git
 
-    git clone https://github.com/uniswap-python/uniswap-python.git
-    cd uniswap-python
-    poetry install
+    # or clone and install for development:
+
+    git clone https://github.com/mine-your-business/myb-uniswap-sdk.git
+    cd myb-uniswap-sdk
+    pip install -r requirements.txt -e ".[dev]"
 
 
 Initializing the Uniswap class

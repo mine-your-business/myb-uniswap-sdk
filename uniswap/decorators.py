@@ -15,11 +15,11 @@ def check_approval(method: Callable) -> Callable:
     def approved(self: Any, *args: Any, **kwargs: Any) -> Any:
         # Check to see if the first token is actually ETH
         token = args[0] if args[0] != ETH_ADDRESS else None
-        token_two = None
+        _token_two = None
 
         # Check second token, if needed
         if method.__name__ == "make_trade" or method.__name__ == "make_trade_output":
-            token_two = args[1] if args[1] != ETH_ADDRESS else None
+            _token_two = args[1] if args[1] != ETH_ADDRESS else None
 
         # Approve both tokens, if needed
         if token:
