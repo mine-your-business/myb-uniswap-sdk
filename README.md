@@ -48,7 +48,7 @@ uniswap.make_trade(eth, dai, 10**17, fee=3000)
 
 | `use_estimate_gas` | Gas limit sent | When the limit is exceeded |
 | --- | --- | --- |
-| `True` (default) | `eth_estimateGas` result plus 20% | Raises `Exception("Gas fees too high!")` without sending if the padded estimate is above `maximum_gas` |
+| `True` (default) | `eth_estimateGas` result plus 20% | Raises `uniswap.exceptions.GasLimitExceeded` (an `Exception` subclass) without sending if the padded estimate is above `maximum_gas` |
 | `False` | `maximum_gas` | The transaction runs out of gas on chain |
 
 ### Command line
@@ -66,9 +66,10 @@ unipy token weth
 2.0.0 moves from web3.py 5 to web3.py 8 and requires Python 3.11+.
 
 - If you pass your own `Web3` instance, it must be a web3.py 8 instance (`Web3.to_checksum_address`, `build_transaction`, and so on).
-- `make_trade` and `make_trade_output` validate both token arguments and raise `web3.exceptions.NameNotFound` for anything that is not a `0x` address.
+- `make_trade` and `make_trade_output` validate both token arguments before any approval transaction and raise `web3.exceptions.NameNotFound` for anything that is not a `0x` address.
 - With `use_estimate_gas=False`, `maximum_gas` is now set before the transaction is built, so web3 no longer calls `eth_estimateGas` in that mode.
 - Uniswap v2 token-to-token swaps where one side is WETH route directly instead of through WETH twice.
+- Exceeding `maximum_gas` raises `uniswap.exceptions.GasLimitExceeded` instead of a bare `Exception`. The message still starts with "Gas fees too high!".
 - The package installs the `unipy` CLI entry point.
 
 ## Development
@@ -111,7 +112,8 @@ _2.0.0_
 * Upgraded web3.py 5 to 8 (snake_case web3 APIs, `encode_abi`, `build_transaction`, `raw_transaction`), following upstream's web3 6 migration
 * Python 3.11+ required
 * `maximum_gas` is applied before `build_transaction` when `use_estimate_gas=False`
-* `make_trade` / `make_trade_output` validate token addresses up front
+* `make_trade` / `make_trade_output` validate token addresses before any approval transaction
+* Exceeding `maximum_gas` raises `GasLimitExceeded`
 * v2 token-to-token swaps no longer route through WETH twice when one side is WETH (upstream #459)
 * Added Görli to the network id table
 * Packaging moved from `setup.py` to `pyproject.toml`; dropped the stale upstream Poetry metadata; `unipy` CLI entry point added

@@ -13,6 +13,7 @@ from web3.providers.base import BaseProvider
 from uniswap import Uniswap
 from uniswap.cli import _coerce_to_checksum
 from uniswap.constants import ETH_ADDRESS, WETH9_ADDRESS
+from uniswap.exceptions import GasLimitExceeded
 from uniswap.tokens import tokens, tokens_rinkeby
 from uniswap.util import (
     _addr_to_str,
@@ -169,10 +170,29 @@ def test_supports_decorator_rejects_wrong_version():
         uni.get_fee_maker()
 
 
-def test_make_trade_rejects_non_address_tokens():
+@pytest.mark.parametrize("method", ["make_trade", "make_trade_output"])
+@pytest.mark.parametrize(
+    "token_in, token_out",
+    [(ETH_ADDRESS, "btc"), (DAI, "btc"), ("btc", DAI)],
+)
+def test_make_trade_rejects_non_address_tokens_before_approving(
+    monkeypatch, method, token_in, token_out
+):
     uni = Uniswap(WALLET, None, web3=offline_web3(), version=3)
+    calls: List[str] = []
+
+    def is_approved(token: Any) -> bool:
+        calls.append("check")
+        return False
+
+    def approve(token: Any) -> None:
+        calls.append("approve")
+
+    monkeypatch.setattr(uni, "_is_approved", is_approved)
+    monkeypatch.setattr(uni, "approve", approve)
     with pytest.raises(NameNotFound):
-        uni.make_trade(ETH_ADDRESS, "btc", 1)
+        getattr(uni, method)(token_in, token_out, 1)
+    assert calls == []
 
 
 @pytest.mark.parametrize(
@@ -258,6 +278,7 @@ def test_estimated_gas_has_margin(gas_client, monkeypatch):
 
 def test_estimated_gas_over_maximum_raises(gas_client, monkeypatch):
     monkeypatch.setattr(gas_client.w3.eth, "estimate_gas", lambda tx: 260_000)
-    with pytest.raises(Exception, match="Gas fees too high"):
+    with pytest.raises(GasLimitExceeded, match="Gas fees too high") as exc:
         gas_client._build_and_send_tx(FakeFunction(), _tx_params())
+    assert (exc.value.estimated, exc.value.maximum) == (312_000, 300_000)
     assert not gas_client._sent

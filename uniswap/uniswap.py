@@ -15,7 +15,7 @@ from web3.types import Nonce, TxParams, Wei
 from .types import AddressLike
 from .token import ERC20Token
 from .tokens import tokens, tokens_rinkeby
-from .exceptions import InvalidToken, InsufficientBalance
+from .exceptions import GasLimitExceeded, InvalidToken, InsufficientBalance
 from .util import (
     _str_to_addr,
     _addr_to_str,
@@ -74,7 +74,7 @@ class Uniswap:
         :param version: Which version of the Uniswap contracts to use.
         :param default_slippage: Default slippage for a trade, as a float (0.01 is 1%). WARNING: slippage is untested.
         :param use_estimate_gas: Estimate gas per transaction (plus a 20% margin). If False, every transaction uses ``maximum_gas`` as its gas limit.
-        :param maximum_gas: Gas limit used when ``use_estimate_gas`` is False, and the ceiling for estimated gas when it is True (a higher estimate raises instead of sending).
+        :param maximum_gas: Gas limit used when ``use_estimate_gas`` is False, and the ceiling for estimated gas when it is True (a higher estimate raises ``GasLimitExceeded`` instead of sending).
         :param factory_contract_addr: Can be optionally set to override the address of the factory contract.
         :param router_contract_addr: Can be optionally set to override the address of the router contract (v2 only).
         """
@@ -411,8 +411,6 @@ class Uniswap:
         if slippage is None:
             slippage = self.default_slippage
 
-        _validate_address(input_token)
-        _validate_address(output_token)
         if input_token == output_token:
             raise ValueError
 
@@ -454,8 +452,6 @@ class Uniswap:
         if slippage is None:
             slippage = self.default_slippage
 
-        _validate_address(input_token)
-        _validate_address(output_token)
         if input_token == output_token:
             raise ValueError
 
@@ -1133,7 +1129,7 @@ class Uniswap:
                     f"Unable to process transaction - estimated gas of {estimated_gas} "
                     f"exceeds the configured maximum_gas of {self.maximum_gas}"
                 )
-                raise Exception("Gas fees too high!")
+                raise GasLimitExceeded(estimated_gas, self.maximum_gas)
             transaction["gas"] = Wei(estimated_gas)
 
         signed_txn = self.w3.eth.account.sign_transaction(
@@ -1312,7 +1308,6 @@ class Uniswap:
             pool_contract = _load_contract(
                 self.w3, abi_name="uniswap-v3/pool", address=pool_address
             )
-            # t0 = pool_contract.functions.token0().call()
             t1 = pool_contract.functions.token1().call()
             if t1.lower() == token_in.lower():
                 den0 = self.get_token(token_in).decimals
