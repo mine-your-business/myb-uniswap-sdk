@@ -42,7 +42,7 @@ dev = [
 ]
 docs = [
     "Sphinx>=9.0.4",
-    "sphinx-book-theme>=1.1",
+    "sphinx-book-theme>=1.4.0",
     "sphinx-click>=6.2.0",
 ]
 
