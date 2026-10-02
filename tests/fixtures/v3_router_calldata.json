@@ -1,0 +1,35 @@
+{
+  "router_address": "0xE592427A0AEce92De3Edee1F18E0157C05861564",
+  "calls": [
+    {
+      "fn_name": "exactInputSingle",
+      "args": [
+        [
+          "0x6B175474E89094C44Da98b954EedeAC495271d0F",
+          "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+          3000,
+          "0x0000000000000000000000000000000000000000",
+          1700000000,
+          1000000000000000000,
+          123,
+          0
+        ]
+      ],
+      "selector": "0x414bf389"
+    },
+    {
+      "fn_name": "unwrapWETH9",
+      "args": [
+        123,
+        "0x94e3361495bD110114ac0b6e35Ed75E77E6a6cFA"
+      ],
+      "selector": "0x49404b7c"
+    },
+    {
+      "fn_name": "refundETH",
+      "args": [],
+      "selector": "0x12210e8a"
+    }
+  ],
+  "_comment": "Expected calldata is the selector followed by each static argument ABI-encoded as one 32-byte word."
+}

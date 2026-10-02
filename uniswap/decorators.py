@@ -2,6 +2,7 @@ import functools
 from typing import Callable, Any, List, Dict, TYPE_CHECKING
 
 from .constants import ETH_ADDRESS
+from .util import _validate_address
 
 if TYPE_CHECKING:
     from .uniswap import Uniswap
@@ -13,15 +14,13 @@ def check_approval(method: Callable) -> Callable:
 
     @functools.wraps(method)
     def approved(self: Any, *args: Any, **kwargs: Any) -> Any:
-        # Check to see if the first token is actually ETH
+        # Reject bad token arguments before approve() can send a transaction.
+        if method.__name__ in ("make_trade", "make_trade_output"):
+            _validate_address(args[0])
+            _validate_address(args[1])
+
+        # Only the input token needs an allowance; ETH needs none.
         token = args[0] if args[0] != ETH_ADDRESS else None
-        token_two = None
-
-        # Check second token, if needed
-        if method.__name__ == "make_trade" or method.__name__ == "make_trade_output":
-            token_two = args[1] if args[1] != ETH_ADDRESS else None
-
-        # Approve both tokens, if needed
         if token:
             is_approved = self._is_approved(token)
             # logger.warning(f"Approved? {token}: {is_approved}")

@@ -1,24 +1,30 @@
-.PHONY: test typecheck lint precommit docs
+.PHONY: install test test-integration typecheck lint verify build docs format-abis
+
+install:
+	python -m pip install -r requirements.txt -e ".[dev]"
 
 test:
-	poetry run pytest -v --tb=line --maxfail=4 --cov=uniswap --cov-report html --cov-report term --cov-report xml
+	pytest -ra --cov=uniswap --cov-report=term
+
+# Needs PROVIDER (mainnet RPC URL) and anvil (https://getfoundry.sh) on PATH.
+test-integration:
+	pytest -ra -m integration
 
 typecheck:
-	poetry run mypy --pretty
+	mypy --pretty
 
 lint:
-	poetry run flake8
+	ruff check .
 
-format:
-	black uniswap
-    
-format-abis:
-	npx prettier --write --parser=json uniswap/assets/*/*.abi
+# Same checks CI runs on every push.
+verify: lint typecheck test build
 
-precommit:
-	make typecheck
-	make lint
-	make test
+build:
+	python -m build
 
 docs:
-	cd docs/ && make html
+	python -m pip install -e ".[docs]"
+	cd docs/ && $(MAKE) html
+
+format-abis:
+	npx prettier --write --parser=json uniswap/assets/*/*.abi

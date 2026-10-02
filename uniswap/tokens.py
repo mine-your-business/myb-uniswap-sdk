@@ -1,11 +1,11 @@
 from typing import Dict
 
 from web3 import Web3
-from web3.types import ChecksumAddress
+from eth_typing import ChecksumAddress
 
 
 tokens: Dict[str, ChecksumAddress] = {
-    k: Web3.toChecksumAddress(v)
+    k: Web3.to_checksum_address(v)
     for k, v in {
         "ETH": "0x0000000000000000000000000000000000000000",
         "WETH": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
@@ -18,7 +18,7 @@ tokens: Dict[str, ChecksumAddress] = {
 }
 
 tokens_rinkeby: Dict[str, ChecksumAddress] = {
-    k: Web3.toChecksumAddress(v)
+    k: Web3.to_checksum_address(v)
     for k, v in {
         "ETH": "0x0000000000000000000000000000000000000000",
         "DAI": "0x2448eE2641d78CC42D7AD76498917359D961A783",

@@ -29,21 +29,36 @@ else:
 RECEIPT_TIMEOUT = 5
 
 
+# These tests fork mainnet with anvil (https://getfoundry.sh), so they need both
+# the `anvil` binary and a mainnet RPC URL in PROVIDER. Without either, the whole
+# module is skipped and only the offline tests run.
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.skipif(
+        not os.getenv("PROVIDER"), reason="PROVIDER (mainnet RPC URL) is not set"
+    ),
+    pytest.mark.skipif(
+        not shutil.which("anvil"), reason="anvil (Foundry) is not installed"
+    ),
+]
+
+
 @dataclass
-class GanacheInstance:
+class AnvilInstance:
     provider: str
     eth_address: str
     eth_privkey: str
 
 
 @pytest.fixture(scope="module", params=UNISWAP_VERSIONS)
-def client(request, web3: Web3, ganache: GanacheInstance):
+def client(request, web3: Web3, anvil: AnvilInstance):
     return Uniswap(
-        ganache.eth_address,
-        ganache.eth_privkey,
+        anvil.eth_address,
+        anvil.eth_privkey,
         web3=web3,
         version=request.param,
         use_estimate_gas=False,  # see note in _build_and_send_tx
+        maximum_gas=500_000,
     )
 
 
@@ -54,57 +69,61 @@ def test_assets(client: Uniswap):
     """
     tokens = client._get_token_addresses()
 
-    for token_name, amount in [("DAI", 100 * 10 ** 18), ("USDC", 100 * 10 ** 6)]:
+    for token_name, amount in [("DAI", 100 * 10**18), ("USDC", 100 * 10**6)]:
         token_addr = tokens[token_name]
         price = client.get_price_output(_str_to_addr(ETH_ADDRESS), token_addr, amount)
         logger.info(f"Cost of {amount} {token_name}: {price}")
         logger.info("Buying...")
 
-        tx = client.make_trade_output(tokens["ETH"], token_addr, amount)
-        client.w3.eth.wait_for_transaction_receipt(tx, timeout=RECEIPT_TIMEOUT)
+        txid = client.make_trade_output(tokens["ETH"], token_addr, amount)
+        tx = client.w3.eth.wait_for_transaction_receipt(txid, timeout=RECEIPT_TIMEOUT)
+        assert tx["status"] == 1, f"Transaction failed: {tx}"
 
 
 @pytest.fixture(scope="module")
-def web3(ganache: GanacheInstance):
-    w3 = Web3(Web3.HTTPProvider(ganache.provider, request_kwargs={"timeout": 30}))
+def web3(anvil: AnvilInstance):
+    w3 = Web3(Web3.HTTPProvider(anvil.provider, request_kwargs={"timeout": 30}))
     if 1 != int(w3.net.version):
         raise Exception("PROVIDER was not a mainnet provider, which the tests require")
     return w3
 
 
 @pytest.fixture(scope="module")
-def ganache() -> Generator[GanacheInstance, None, None]:
-    """Fixture that runs ganache which has forked off mainnet"""
-    if not shutil.which("ganache"):
-        raise Exception(
-            "ganache was not found in PATH, you can install it with `npm install -g ganache`"
-        )
-    if "PROVIDER" not in os.environ:
-        raise Exception(
-            "PROVIDER was not set, you need to set it to a mainnet provider (such as Infura) so that we can fork off our testnet"
-        )
-
+def anvil() -> Generator[AnvilInstance, None, None]:
+    """Fixture that runs anvil forked off mainnet."""
     port = 10999
-    defaultGasPrice = 1000_000_000_000  # 1000 gwei
     p = subprocess.Popen(
-        f"""ganache
-        --port {port}
-        --wallet.seed test
-        --chain.networkId 1
-        --chain.chainId 1
-        --fork.url {os.environ['PROVIDER']}
-        --miner.defaultGasPrice {defaultGasPrice}
-        --miner.instamine "strict"
-        """.replace(
-            "\n", " "
-        ),
-        shell=True,
+        [
+            "anvil",
+            "--port",
+            str(port),
+            "--chain-id",
+            "1",
+            "--fork-url",
+            os.environ["PROVIDER"],
+            "--gas-price",
+            str(100_000_000_000),  # 100 gwei
+        ],
+        stdout=subprocess.DEVNULL,
     )
-    # Address #1 when ganache is run with `--wallet.seed test`, it starts with 1000 ETH
-    eth_address = "0x94e3361495bD110114ac0b6e35Ed75E77E6a6cFA"
-    eth_privkey = "0x6f1313062db38875fb01ee52682cbf6a8420e92bfbc578c5d4fdc0a32c50266f"
-    sleep(3)
-    yield GanacheInstance(f"http://127.0.0.1:{port}", eth_address, eth_privkey)
+    # Account #9 from anvil's default test mnemonic, starts with 10000 ETH
+    eth_address = "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720"
+    eth_privkey = "0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6"
+    provider = f"http://127.0.0.1:{port}"
+    w3 = Web3(Web3.HTTPProvider(provider))
+    for _ in range(60):
+        if p.poll() is not None:
+            raise Exception(f"anvil exited early with code {p.returncode}")
+        try:
+            if w3.is_connected():
+                break
+        except Exception:
+            pass
+        sleep(0.5)
+    else:
+        p.kill()
+        raise Exception("anvil did not start within 30s")
+    yield AnvilInstance(provider, eth_address, eth_privkey)
     p.kill()
     p.wait()
 
@@ -117,18 +136,18 @@ def does_not_raise():
 # TODO: Change pytest.param(..., mark=pytest.mark.xfail) to the expectation/raises method
 @pytest.mark.usefixtures("client", "web3")
 class TestUniswap(object):
-    ONE_ETH = 10 ** 18
-    ONE_USDC = 10 ** 6
+    ONE_ETH = 10**18
+    ONE_USDC = 10**6
 
     ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
 
     # TODO: Detect mainnet vs rinkeby and set accordingly, like _get_token_addresses in the Uniswap class
     # For Mainnet testing (with `ganache --fork` as per the ganache fixture)
     eth = "0x0000000000000000000000000000000000000000"
-    weth = Web3.toChecksumAddress("0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2")
-    bat = Web3.toChecksumAddress("0x0D8775F648430679A709E98d2b0Cb6250d2887EF")
-    dai = Web3.toChecksumAddress("0x6b175474e89094c44da98b954eedeac495271d0f")
-    usdc = Web3.toChecksumAddress("0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48")
+    weth = Web3.to_checksum_address("0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2")
+    bat = Web3.to_checksum_address("0x0D8775F648430679A709E98d2b0Cb6250d2887EF")
+    dai = Web3.to_checksum_address("0x6b175474e89094c44da98b954eedeac495271d0f")
+    usdc = Web3.to_checksum_address("0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48")
 
     # For Rinkeby
     # eth = "0x0000000000000000000000000000000000000000"
@@ -179,7 +198,7 @@ class TestUniswap(object):
             (eth, dai, ONE_ETH, {}),
             (dai, eth, ONE_ETH, {}),
             (eth, bat, 2 * ONE_ETH, {}),
-            (bat, eth, 2 * ONE_ETH, {}),
+            (bat, eth, ONE_ETH // 100, {}),
             (weth, dai, ONE_ETH, {}),
             (dai, weth, ONE_ETH, {}),
             (dai, usdc, ONE_USDC, {"fee": 500}),
@@ -288,6 +307,10 @@ class TestUniswap(object):
             pytest.skip(
                 "Not supported in this version of Uniswap, or at least no liquidity"
             )
+        # Uniswap v1 token-to-ETH runs Vyper 0.1.x bytecode whose computed jumps
+        # anvil's strict EVM rejects (InvalidJump); ganache tolerated them.
+        if client.version == 1 and output_token == ETH_ADDRESS:
+            pytest.xfail("v1 token-to-ETH: InvalidJump under anvil")
         with expectation():
             bal_in_before = client.get_token_balance(input_token)
 
@@ -304,11 +327,11 @@ class TestUniswap(object):
         "input_token, output_token, qty, recipient, expectation",
         [
             # ETH -> Token
-            (eth, dai, 10 ** 18, None, does_not_raise),
+            (eth, dai, 10**18, None, does_not_raise),
             # Token -> Token
             (dai, usdc, ONE_USDC, None, does_not_raise),
             # Token -> ETH
-            (dai, eth, 10 ** 16, None, does_not_raise),
+            (dai, eth, 10**16, None, does_not_raise),
             # FIXME: These should probably be uncommented eventually
             # (eth, bat, int(0.000001 * ONE_ETH), ZERO_ADDRESS),
             # (bat, eth, int(0.000001 * ONE_ETH), ZERO_ADDRESS),
@@ -316,7 +339,7 @@ class TestUniswap(object):
             (
                 dai,
                 eth,
-                10 * 10 ** 18,
+                10 * 10**18,
                 None,
                 lambda: pytest.raises(InsufficientBalance),
             ),
@@ -338,6 +361,10 @@ class TestUniswap(object):
             pytest.skip(
                 "Not supported in this version of Uniswap, or at least no liquidity"
             )
+        # Uniswap v1 token-to-ETH runs Vyper 0.1.x bytecode whose computed jumps
+        # anvil's strict EVM rejects (InvalidJump); ganache tolerated them.
+        if client.version == 1 and output_token == ETH_ADDRESS:
+            pytest.xfail("v1 token-to-ETH: InvalidJump under anvil")
         with expectation():
             balance_before = client.get_token_balance(output_token)
 

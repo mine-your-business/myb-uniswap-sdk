@@ -1,23 +1,16 @@
 .. image:: _static/logo.png
   :width: 200
-  :alt: uniswap-python logo
+  :alt: logo
   :align: center
 
 |
 |
 
-Welcome to uniswap-python's documentation!
-==========================================
+Welcome to myb-uniswap-sdk's documentation!
+===========================================
 
-.. image:: https://img.shields.io/github/stars/uniswap-python/uniswap-python?style=social   
-   :target: https://github.com/uniswap-python/uniswap-python
-   :alt: GitHub Repo stars
-.. image:: https://img.shields.io/twitter/follow/UniswapPython?label=Follow&style=social   
-   :target: https://twitter.com/UniswapPython
-   :alt: Twitter follow
-
-
-.. note:: We're in the process of improving the documentation of the project. You will find some docs here, but there's also some documentation in the `README <https://github.com/uniswap-python/uniswap-python>`_ that you might want to look at.
+myb-uniswap-sdk is the Mine Your Business fork of `uniswap-python <https://github.com/uniswap-python/uniswap-python>`_.
+See also the `README <https://github.com/mine-your-business/myb-uniswap-sdk>`_.
 
 This library lets you easily retrieve prices and make trades on all Uniswap versions.
 

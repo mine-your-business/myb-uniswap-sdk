@@ -1,75 +1,133 @@
-<p align="center">
-  <img width="350" height="350" src="https://user-images.githubusercontent.com/9441295/107376524-d96b5880-6a9e-11eb-9eba-094c439cfb07.png">
-</p>
+# myb-uniswap-sdk
 
-# uniswap-python
+[![CI](https://github.com/mine-your-business/myb-uniswap-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/mine-your-business/myb-uniswap-sdk/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/myb-uniswap-sdk)](https://pypi.org/project/myb-uniswap-sdk/)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-[![GitHub Actions](https://github.com/shanefontaine/uniswap-python/workflows/Test/badge.svg)](https://github.com/shanefontaine/uniswap-python/actions)
-[![codecov](https://codecov.io/gh/uniswap-python/uniswap-python/branch/master/graph/badge.svg?token=VHAZHHLFX8)](https://codecov.io/gh/uniswap-python/uniswap-python)
-[![Downloads](https://pepy.tech/badge/uniswap-python)](https://pepy.tech/project/uniswap-python)
-[![License](http://img.shields.io/badge/license-MIT-blue.svg)](https://raw.githubusercontent.com/shanefontaine/uniswap-python/master/LICENSE)
-[![PyPI](https://img.shields.io/pypi/v/uniswap-python)](https://pypi.org/project/uniswap-python/)
-[![Typechecking: Mypy](http://www.mypy-lang.org/static/mypy_badge.svg)](http://mypy-lang.org/)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/ambv/black)
+Python client for [Uniswap](https://uniswap.org/) v1, v2 and v3, built on [web3.py](https://github.com/ethereum/web3.py) 8.
 
-[![GitHub Repo stars](https://img.shields.io/github/stars/uniswap-python/uniswap-python?style=social)](https://github.com/uniswap-python/uniswap-python/stargazers)
-[![Twitter Follow](https://img.shields.io/twitter/follow/UniswapPython?label=Follow&style=social)](https://twitter.com/UniswapPython)
+This is the Mine Your Business fork of [uniswap-python](https://github.com/uniswap-python/uniswap-python).
+It differs from upstream in one behavior: a configurable gas limit (`maximum_gas`) that caps estimated gas
+and is used as the fixed limit when gas estimation is off.
+It also ships every ABI file in the package and pins known-good dependency versions in `requirements.txt`.
 
-The unofficial Python client for [Uniswap](https://uniswap.io/).
+## Installation
 
-Documentation is available at https://uniswap-python.com/
-
-## Functionality
-
-*  A simple to use Python wrapper for all available contract functions and variables
-*  A basic CLI to get prices and token metadata
-*  Simple parsing of data returned from the Uniswap contract
-
-### Supports
-
- - Uniswap v3 (as of v0.5.0)
-    - Including beta support for Arbitrum & Optimism deployments (as of v0.5.4)
- - Uniswap v2 (as of v0.4.0)
- - Uniswap v1 (deprecated)
- - Various forks (untested, but should work)
-   - Honeyswap (xDai)
-   - Pancakeswap (BSC)
-   - Sushiswap (mainnet)
-
-## Getting Started
-
-See our [Getting started guide](https://uniswap-python.com/getting-started.html) in the documentation.
-
-## Testing
-
-Unit tests are under development using the pytest framework. Contributions are welcome!
-
-Test are run on a fork of the main net using ganache-cli. You need to install it with `npm install -g ganache-cli` before running tests.
-
-To run the full test suite, in the project directory set the `PROVIDER` env variable to a mainnet provider, and run:
+Requires Python 3.11 or newer.
 
 ```sh
-poetry install
-export PROVIDER= # URL of provider, e.g. https://mainnet.infura.io/v3/...
-make test
-# or...
-poetry run pytest --capture=no  # doesn't capture output (verbose)
+pip install myb-uniswap-sdk
 ```
 
-## Support our continued work!
+The import name is `uniswap`, the same as upstream, so do not install `uniswap-python` in the same environment.
 
-You can support us on [Gitcoin Grants](https://gitcoin.co/grants/2631/uniswap-python).
+## Usage
+
+```python
+from uniswap import Uniswap
+
+uniswap = Uniswap(
+    address="0x...",           # wallet address, or None for read-only use
+    private_key="0x...",       # or None for read-only use
+    version=3,                 # Uniswap version: 1, 2 or 3
+    provider="https://...",    # RPC URL; falls back to the PROVIDER environment variable
+    maximum_gas=250_000,       # gas ceiling (default 250000)
+)
+
+dai = "0x6B175474E89094C44Da98b954EedeAC495271d0F"
+eth = "0x0000000000000000000000000000000000000000"
+
+# Price of 1 ETH in DAI (wei in, DAI base units out)
+uniswap.get_price_input(eth, dai, 10**18, fee=3000)
+
+# Swap 0.1 ETH for DAI
+uniswap.make_trade(eth, dai, 10**17, fee=3000)
+```
+
+### Gas limit
+
+| `use_estimate_gas` | Gas limit sent | When the limit is exceeded |
+| --- | --- | --- |
+| `True` (default) | `eth_estimateGas` result plus 20% | Raises `uniswap.exceptions.GasLimitExceeded` (an `Exception` subclass) without sending if the padded estimate is above `maximum_gas` |
+| `False` | `maximum_gas` | The transaction runs out of gas on chain |
+
+### Command line
+
+The package installs a `unipy` command that reads `PROVIDER` from the environment or a `.env` file:
+
+```sh
+export PROVIDER=https://...
+unipy price eth dai
+unipy token weth
+```
+
+## Upgrading from 1.x
+
+2.0.0 moves from web3.py 5 to web3.py 8 and requires Python 3.11+.
+
+- If you pass your own `Web3` instance, it must be a web3.py 8 instance (`Web3.to_checksum_address`, `build_transaction`, and so on).
+- `make_trade` and `make_trade_output` validate both token arguments before any approval transaction and raise `web3.exceptions.NameNotFound` for anything that is not a `0x` address.
+- With `use_estimate_gas=False`, `maximum_gas` is now set before the transaction is built, so web3 no longer calls `eth_estimateGas` in that mode.
+- Uniswap v2 token-to-token swaps where one side is WETH route directly instead of through WETH twice.
+- Exceeding `maximum_gas` raises `uniswap.exceptions.GasLimitExceeded` instead of a bare `Exception`. The message still starts with "Gas fees too high!".
+- The package installs the `unipy` CLI entry point.
+
+## Development
+
+```sh
+python -m venv .venv && . .venv/bin/activate
+make install    # pip install -r requirements.txt -e ".[dev]"
+make verify     # ruff, mypy, offline tests and a build, as in CI
+```
+
+`requirements.txt` pins the versions CI tests against. `pyproject.toml` is the only packaging metadata and holds the version floors.
+
+### Integration tests
+
+Tests marked `integration` fork mainnet with [anvil](https://getfoundry.sh) and skip unless `PROVIDER` is set and `anvil` is on `PATH`:
+
+```sh
+export PROVIDER=https://...   # mainnet RPC URL
+make test-integration
+```
+
+In CI they run only when the `MAINNET_PROVIDER` repository secret is set.
+
+## Releasing
+
+Publishing a GitHub release tagged `vX.Y.Z` builds the package and uploads it to PyPI through trusted publishing.
+The tag must match `version` in `pyproject.toml`.
+PyPI must list this repository, the `publish.yml` workflow and the `pypi` environment as a trusted publisher for `myb-uniswap-sdk`.
 
 ## Authors
 
-* [Shane Fontaine](https://twitter.com/shanecoin)
-* [Erik Bjäreholt](https://twitter.com/ErikBjare)
-* [@liquid-8](https://github.com/liquid-8)
-* ...and [others](https://github.com/uniswap-python/uniswap-python/graphs/contributors)
-
-*Want to help out with development? We have funding to those that do! See [#181](https://github.com/uniswap-python/uniswap-python/discussions/181)*
+Upstream uniswap-python is by [Shane Fontaine](https://github.com/shanefontaine), [Erik Bjäreholt](https://github.com/ErikBjare),
+[@liquid-8](https://github.com/liquid-8) and [other contributors](https://github.com/uniswap-python/uniswap-python/graphs/contributors).
+This fork is maintained by Mine Your Business.
 
 ## Changelog
+
+_2.0.0_
+
+* Upgraded web3.py 5 to 8 (snake_case web3 APIs, `encode_abi`, `build_transaction`, `raw_transaction`), following upstream's web3 6 migration
+* Python 3.11+ required
+* `maximum_gas` is applied before `build_transaction` when `use_estimate_gas=False`
+* `make_trade` / `make_trade_output` validate token addresses before any approval transaction
+* Exceeding `maximum_gas` raises `GasLimitExceeded`
+* v2 token-to-token swaps no longer route through WETH twice when one side is WETH (upstream #459)
+* Added Görli to the network id table
+* Packaging moved from `setup.py` to `pyproject.toml`; dropped the stale upstream Poetry metadata; `unipy` CLI entry point added
+* License metadata corrected to MIT, matching `LICENSE`
+
+_1.1.0_
+
+* Configurable gas limit (`maximum_gas`)
+
+_1.0.x_
+
+* Forked from uniswap-python 0.5.x and published as `myb-uniswap-sdk`; all ABI files packaged; `requirements.txt` added
+
+_Entries below are from upstream uniswap-python._
 
 _0.5.4_
 

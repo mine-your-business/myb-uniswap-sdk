@@ -1,5 +1,6 @@
 import logging
 import os
+from typing import Optional
 
 import click
 from dotenv import load_dotenv
@@ -22,10 +23,10 @@ def _coerce_to_checksum(addr: str) -> str:
             raise ValueError(
                 "token was not an address, and a shorthand was not found in the token db"
             )
-    if Web3.isChecksumAddress(addr):
+    if Web3.is_checksum_address(addr):
         return addr
     else:
-        return Web3.toChecksumAddress(addr)
+        return Web3.to_checksum_address(addr)
 
 
 @click.group()
@@ -63,7 +64,7 @@ def price(
     token_in: AddressLike,
     token_out: AddressLike,
     raw: bool,
-    quantity: int = None,
+    quantity: Optional[int] = None,
 ) -> None:
     """Returns the price of ``quantity`` tokens of ``token_in`` quoted in ``token_out``."""
     uni: Uniswap = ctx.obj["UNISWAP"]

@@ -4,23 +4,18 @@ import logging
 import functools
 from typing import List, Any, Optional, Union, Tuple, Dict, Iterable
 
+from eth_typing import Address, ChecksumAddress
+from hexbytes import HexBytes
 from web3 import Web3
-from web3.eth import Contract
-from web3.contract import ContractFunction
+from web3.contract import Contract
+from web3.contract.contract import ContractFunction
 from web3.exceptions import BadFunctionCallOutput, ContractLogicError
-from web3.types import (
-    TxParams,
-    Wei,
-    Address,
-    ChecksumAddress,
-    Nonce,
-    HexBytes,
-)
+from web3.types import Nonce, TxParams, Wei
 
 from .types import AddressLike
 from .token import ERC20Token
 from .tokens import tokens, tokens_rinkeby
-from .exceptions import InvalidToken, InsufficientBalance
+from .exceptions import GasLimitExceeded, InvalidToken, InsufficientBalance
 from .util import (
     _str_to_addr,
     _addr_to_str,
@@ -61,15 +56,15 @@ class Uniswap:
         self,
         address: Union[AddressLike, str, None],
         private_key: Optional[str],
-        provider: str = None,
-        web3: Web3 = None,
+        provider: Optional[str] = None,
+        web3: Optional[Web3] = None,
         version: int = 1,
         default_slippage: float = 0.01,
         use_estimate_gas: bool = True,
         maximum_gas: int = 250000,
         # use_eip1559: bool = True,
-        factory_contract_addr: str = None,
-        router_contract_addr: str = None,
+        factory_contract_addr: Optional[str] = None,
+        router_contract_addr: Optional[str] = None,
     ) -> None:
         """
         :param address: The public address of the ETH wallet to use.
@@ -78,6 +73,8 @@ class Uniswap:
         :param web3: Can be optionally set to a custom Web3 instance.
         :param version: Which version of the Uniswap contracts to use.
         :param default_slippage: Default slippage for a trade, as a float (0.01 is 1%). WARNING: slippage is untested.
+        :param use_estimate_gas: Estimate gas per transaction (plus a 20% margin). If False, every transaction uses ``maximum_gas`` as its gas limit.
+        :param maximum_gas: Gas limit used when ``use_estimate_gas`` is False, and the ceiling for estimated gas when it is True (a higher estimate raises ``GasLimitExceeded`` instead of sending).
         :param factory_contract_addr: Can be optionally set to override the address of the factory contract.
         :param router_contract_addr: Can be optionally set to override the address of the router contract (v2 only).
         """
@@ -184,7 +181,7 @@ class Uniswap:
         token0: AddressLike,  # input token
         token1: AddressLike,  # output token
         qty: int,
-        fee: int = None,
+        fee: Optional[int] = None,
         route: Optional[List[AddressLike]] = None,
     ) -> int:
         """Given `qty` amount of the input `token0`, returns the maximum output amount of output `token1`."""
@@ -205,7 +202,7 @@ class Uniswap:
         token0: AddressLike,
         token1: AddressLike,
         qty: int,
-        fee: int = None,
+        fee: Optional[int] = None,
         route: Optional[List[AddressLike]] = None,
     ) -> int:
         """Returns the minimum amount of `token0` required to buy `qty` amount of `token1`."""
@@ -307,7 +304,7 @@ class Uniswap:
         self,
         token: AddressLike,  # output token
         qty: int,
-        fee: int = None,
+        fee: Optional[int] = None,
     ) -> Wei:
         """Public price (i.e. amount of ETH needed) for ETH to token trades with an exact output."""
         if self.version == 1:
@@ -328,7 +325,7 @@ class Uniswap:
         return price
 
     def _get_token_eth_output_price(
-        self, token: AddressLike, qty: Wei, fee: int = None  # input token
+        self, token: AddressLike, qty: Wei, fee: Optional[int] = None  # input token
     ) -> int:
         """Public price (i.e. amount of input token needed) for token to ETH trades with an exact output."""
         if self.version == 1:
@@ -351,7 +348,7 @@ class Uniswap:
         token0: AddressLike,  # input token
         token1: AddressLike,  # output token
         qty: int,
-        fee: int = None,
+        fee: Optional[int] = None,
         route: Optional[List[AddressLike]] = None,
     ) -> int:
         """
@@ -400,9 +397,9 @@ class Uniswap:
         input_token: AddressLike,
         output_token: AddressLike,
         qty: Union[int, Wei],
-        recipient: AddressLike = None,
-        fee: int = None,
-        slippage: float = None,
+        recipient: Optional[AddressLike] = None,
+        fee: Optional[int] = None,
+        slippage: Optional[float] = None,
         fee_on_transfer: bool = False,
     ) -> HexBytes:
         """Make a trade by defining the qty of the input token."""
@@ -442,9 +439,9 @@ class Uniswap:
         input_token: AddressLike,
         output_token: AddressLike,
         qty: Union[int, Wei],
-        recipient: AddressLike = None,
-        fee: int = None,
-        slippage: float = None,
+        recipient: Optional[AddressLike] = None,
+        fee: Optional[int] = None,
+        slippage: Optional[float] = None,
     ) -> HexBytes:
         """Make a trade by defining the qty of the output token."""
         if fee is None:
@@ -617,8 +614,8 @@ class Uniswap:
             )
             sqrtPriceLimitX96 = 0
 
-            swap_data = self.router.encodeABI(
-                fn_name="exactInputSingle",
+            swap_data = self.router.encode_abi(
+                "exactInputSingle",
                 args=[
                     (
                         input_token,
@@ -633,8 +630,8 @@ class Uniswap:
                 ],
             )
 
-            unwrap_data = self.router.encodeABI(
-                fn_name="unwrapWETH9", args=[min_tokens_bought, recipient]
+            unwrap_data = self.router.encode_abi(
+                "unwrapWETH9", args=[min_tokens_bought, recipient]
             )
 
             # Multicall
@@ -706,7 +703,7 @@ class Uniswap:
                 func(
                     qty,
                     min_tokens_bought,
-                    [input_token, self.get_weth_address(), output_token],
+                    self._v2_token_path(input_token, output_token),
                     recipient,
                     self._deadline(),
                 ),
@@ -795,8 +792,8 @@ class Uniswap:
 
             sqrtPriceLimitX96 = 0
 
-            swap_data = self.router.encodeABI(
-                fn_name="exactOutputSingle",
+            swap_data = self.router.encode_abi(
+                "exactOutputSingle",
                 args=[
                     (
                         self.get_weth_address(),
@@ -811,7 +808,7 @@ class Uniswap:
                 ],
             )
 
-            refund_data = self.router.encodeABI(fn_name="refundETH", args=None)
+            refund_data = self.router.encode_abi("refundETH")
 
             # Multicall
             return self._build_and_send_tx(
@@ -883,8 +880,8 @@ class Uniswap:
 
             sqrtPriceLimitX96 = 0
 
-            swap_data = self.router.encodeABI(
-                fn_name="exactOutputSingle",
+            swap_data = self.router.encode_abi(
+                "exactOutputSingle",
                 args=[
                     (
                         input_token,
@@ -899,8 +896,8 @@ class Uniswap:
                 ],
             )
 
-            unwrap_data = self.router.encodeABI(
-                fn_name="unwrapWETH9", args=[qty, recipient]
+            unwrap_data = self.router.encode_abi(
+                "unwrapWETH9", args=[qty, recipient]
             )
 
             # Multicall
@@ -968,7 +965,7 @@ class Uniswap:
                 self.router.functions.swapTokensForExactTokens(
                     qty,
                     amount_in_max,
-                    [input_token, self.get_weth_address(), output_token],
+                    self._v2_token_path(input_token, output_token),
                     recipient,
                     self._deadline(),
                 ),
@@ -996,6 +993,15 @@ class Uniswap:
             )
         else:
             raise ValueError
+
+    def _v2_token_path(
+        self, input_token: AddressLike, output_token: AddressLike
+    ) -> List[AddressLike]:
+        """Route token->token swaps through WETH, unless one side already is WETH."""
+        weth = self.get_weth_address()
+        if is_same_address(input_token, weth) or is_same_address(output_token, weth):
+            return [input_token, output_token]
+        return [input_token, weth, output_token]
 
     # ------ Wallet balance ------------------------------------------------------------
     def get_eth_balance(self) -> Wei:
@@ -1107,22 +1113,24 @@ class Uniswap:
         """Build and send a transaction."""
         if not tx_params:
             tx_params = self._get_tx_params()
-        transaction = function.buildTransaction(tx_params)
+
+        # web3 runs eth_estimateGas inside build_transaction when no gas is given,
+        # so the fixed limit has to be set before building, not after.
+        if "gas" not in tx_params and not self.use_estimate_gas:
+            tx_params["gas"] = Wei(self.maximum_gas)
+
+        transaction = function.build_transaction(tx_params)
 
         if "gas" not in tx_params:
-            # `use_estimate_gas` needs to be True for networks like Arbitrum (can't assume 250000 gas),
-            # but it breaks tests for unknown reasons because estimateGas takes forever on some tx's.
-            # Maybe an issue with ganache? (got GC warnings once...)
-            if self.use_estimate_gas:
-                # The Uniswap V3 UI uses 20% margin for transactions
-                estimated_gas = int(self.w3.eth.estimate_gas(transaction) * 1.2)
-                if estimated_gas > self.maximum_gas:
-                    logger.error(
-                        f"Unable to process transaction - gas fee of {estimated_gas} WEI too high (configured maximum is {self.maximum_gas} WEI)")
-                    raise Exception("Gas fees too high!")
-                transaction["gas"] = Wei(estimated_gas)
-            else:
-                transaction["gas"] = Wei(self.maximum_gas)
+            # The Uniswap V3 UI uses 20% margin for transactions
+            estimated_gas = int(self.w3.eth.estimate_gas(transaction) * 1.2)
+            if estimated_gas > self.maximum_gas:
+                logger.error(
+                    f"Unable to process transaction - estimated gas of {estimated_gas} "
+                    f"exceeds the configured maximum_gas of {self.maximum_gas}"
+                )
+                raise GasLimitExceeded(estimated_gas, self.maximum_gas)
+            transaction["gas"] = Wei(estimated_gas)
 
         signed_txn = self.w3.eth.account.sign_transaction(
             transaction, private_key=self.private_key
@@ -1130,12 +1138,12 @@ class Uniswap:
         # TODO: This needs to get more complicated if we want to support replacing a transaction
         # FIXME: This does not play nice if transactions are sent from other places using the same wallet.
         try:
-            return self.w3.eth.send_raw_transaction(signed_txn.rawTransaction)
+            return self.w3.eth.send_raw_transaction(signed_txn.raw_transaction)
         finally:
             logger.debug(f"nonce: {tx_params['nonce']}")
             self.last_nonce = Nonce(tx_params["nonce"] + 1)
 
-    def _get_tx_params(self, value: Wei = Wei(0), gas: Wei = None) -> TxParams:
+    def _get_tx_params(self, value: Wei = Wei(0), gas: Optional[Wei] = None) -> TxParams:
         """Get generic transaction parameters."""
         params: TxParams = {
             "from": _addr_to_str(self.address),
@@ -1230,11 +1238,11 @@ class Uniswap:
             raise InvalidToken(address)
         try:
             name = _name.decode()
-        except:
+        except Exception:
             name = _name
         try:
             symbol = _symbol.decode()
-        except:
+        except Exception:
             symbol = _symbol
         return ERC20Token(symbol, address, name, decimals)
 
@@ -1263,27 +1271,27 @@ class Uniswap:
 
         if self.version == 2:
             params: Iterable[Union[ChecksumAddress, Optional[int]]] = [
-                self.w3.toChecksumAddress(token_in),
-                self.w3.toChecksumAddress(token_out),
+                self.w3.to_checksum_address(token_in),
+                self.w3.to_checksum_address(token_out),
             ]
             pair_token = self.factory_contract.functions.getPair(*params).call()
             token_in_erc20 = _load_contract_erc20(
-                self.w3, self.w3.toChecksumAddress(token_in)
+                self.w3, self.w3.to_checksum_address(token_in)
             )
             token_in_balance = int(
                 token_in_erc20.functions.balanceOf(
-                    self.w3.toChecksumAddress(pair_token)
+                    self.w3.to_checksum_address(pair_token)
                 ).call()
             )
             token_in_decimals = self.get_token(token_in).decimals
             token_in_balance = token_in_balance / (10 ** token_in_decimals)
 
             token_out_erc20 = _load_contract_erc20(
-                self.w3, self.w3.toChecksumAddress(token_out)
+                self.w3, self.w3.to_checksum_address(token_out)
             )
             token_out_balance = int(
                 token_out_erc20.functions.balanceOf(
-                    self.w3.toChecksumAddress(pair_token)
+                    self.w3.to_checksum_address(pair_token)
                 ).call()
             )
             token_out_decimals = self.get_token(token_out).decimals
@@ -1292,15 +1300,14 @@ class Uniswap:
             raw_price = token_out_balance / token_in_balance
         else:
             params = [
-                self.w3.toChecksumAddress(token_in),
-                self.w3.toChecksumAddress(token_out),
+                self.w3.to_checksum_address(token_in),
+                self.w3.to_checksum_address(token_out),
                 fee,
             ]
             pool_address = self.factory_contract.functions.getPool(*params).call()
             pool_contract = _load_contract(
                 self.w3, abi_name="uniswap-v3/pool", address=pool_address
             )
-            t0 = pool_contract.functions.token0().call()
             t1 = pool_contract.functions.token1().call()
             if t1.lower() == token_in.lower():
                 den0 = self.get_token(token_in).decimals
@@ -1314,14 +1321,14 @@ class Uniswap:
             )
             if t1.lower() == token_in.lower():
                 raw_price = 1 / raw_price
-        return raw_price
+        return float(raw_price)
 
     def estimate_price_impact(
         self,
         token_in: AddressLike,
         token_out: AddressLike,
         amount_in: int,
-        fee: int = None,
+        fee: Optional[int] = None,
         route: Optional[List[AddressLike]] = None,
     ) -> float:
         """
@@ -1407,7 +1414,7 @@ class Uniswap:
     @functools.lru_cache()
     @supports([1])
     def _exchange_contract(
-        self, token_addr: AddressLike = None, ex_addr: AddressLike = None
+        self, token_addr: Optional[AddressLike] = None, ex_addr: Optional[AddressLike] = None
     ) -> Contract:
         if not ex_addr and token_addr:
             ex_addr = self._exchange_address_from_token(token_addr)

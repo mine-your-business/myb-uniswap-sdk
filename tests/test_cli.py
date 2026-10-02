@@ -6,6 +6,14 @@ from click.testing import CliRunner
 
 from uniswap.cli import main
 
+# The CLI talks to a live chain through PROVIDER; skip when it is not configured.
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.skipif(
+        not os.getenv("PROVIDER"), reason="PROVIDER (mainnet RPC URL) is not set"
+    ),
+]
+
 
 def print_result(result):
     print(result)
@@ -14,7 +22,7 @@ def print_result(result):
 
 
 def test_get_price():
-    runner = CliRunner(mix_stderr=False)
+    runner = CliRunner()
     result = runner.invoke(main, ["price", "eth", "dai"])
     print_result(result)
     assert result.exit_code == 0
@@ -28,7 +36,7 @@ def test_get_price_stables():
     if os.getenv("UNISWAP_VERSION") == "1":
         pytest.skip("Not supported in v1")
 
-    runner = CliRunner(mix_stderr=False)
+    runner = CliRunner()
     result = runner.invoke(main, ["price", "dai", "usdc"])
     print_result(result)
     assert result.exit_code == 0
@@ -38,14 +46,14 @@ def test_get_price_stables():
 
 
 def test_get_token():
-    runner = CliRunner(mix_stderr=False)
+    runner = CliRunner()
     result = runner.invoke(main, ["token", "weth"])
     print_result(result)
     assert result.exit_code == 0
 
 
 def test_get_tokendb():
-    runner = CliRunner(mix_stderr=False)
+    runner = CliRunner()
     result = runner.invoke(main, ["tokendb", "--metadata"])
     print_result(result)
     assert result.exit_code == 0
