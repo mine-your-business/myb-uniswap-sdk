@@ -38,7 +38,7 @@ dev = [
     "pytest-cov>=7.1.0",
     "mypy>=2.3.1",
     "ruff>=0.9",
-    "build>=1.2",
+    "build>=1.6.1",
 ]
 docs = [
     "Sphinx>=9.0.4",
