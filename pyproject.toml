@@ -43,7 +43,7 @@ dev = [
 docs = [
     "Sphinx>=7",
     "sphinx-book-theme>=1.1",
-    "sphinx-click>=6",
+    "sphinx-click>=6.2.0",
 ]
 
 [project.scripts]
