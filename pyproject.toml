@@ -41,7 +41,7 @@ dev = [
     "build>=1.2",
 ]
 docs = [
-    "Sphinx>=7",
+    "Sphinx>=9.0.4",
     "sphinx-book-theme>=1.1",
     "sphinx-click>=6",
 ]
